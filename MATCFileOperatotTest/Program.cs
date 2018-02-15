@@ -28,6 +28,10 @@ namespace MATCFileOperatotTest
             DirectoryInfo di; 
             List<DirectoryInfo> dList = new List<DirectoryInfo>();
             List<FileInfo> h;
+            DirectoryInfo _directory = new DirectoryInfo("e:\\111");
+            DirectoryInfo[] directories;//= _directory.GetDirectories();
+            List<FileInfo> OldFiles = new List<FileInfo>();
+
             foreach (string dir in args)
             {
                 di = new DirectoryInfo(dir);
@@ -35,36 +39,21 @@ namespace MATCFileOperatotTest
                 h = new List<FileInfo>();
             }
             FileOperator FOp = new FileOperator(new SqlConnection(_SQLConnectionString), LogManager.GetLogger(typeof(FileOperator)),false);
-            try
-            {
-                var ttt = (new FileIOPermission(FileIOPermissionAccess.AllAccess, "\\\\moscow.gbumac.ru\\МАЦ\\Мониторинг\\Паспорта_и_Макеты\\DfsrPrivate"));
-                ttt.Demand();
-                DirectoryInfo _directory = new DirectoryInfo("\\\\moscow.gbumac.ru\\МАЦ\\Мониторинг\\Паспорта_и_Макеты\\DfsrPrivate");
-                //FOp.MD5CalculateParallel(20);
-                PermissionSet ps1 = new PermissionSet(PermissionState.Unrestricted);
-                var ds = new DirectorySecurity(_directory.FullName, AccessControlSections.Access);
-                var ar =ds.GetAccessRules(true, true, typeof(SecurityIdentifier));
-                
-                var perm = (new FileIOPermission(FileIOPermissionAccess.Read, _directory.FullName));
-                ps1.AddPermission(perm);
-                ps1.Demand();
+            OldFiles = new List<FileInfo>();
+            directories=new DirectoryInfo[] { _directory};
 
-                var Files1 = _directory.EnumerateFiles("*", SearchOption.AllDirectories)
-                       .Where(seq =>
-                       {
-                           //PermissionSet ps1 = new PermissionSet(PermissionState.None);
-                           
-                           //var perm = (new FileIOPermission(FileIOPermissionAccess.AllAccess, seq.FullName));
-                           ps1.AddPermission(perm);
-                           ps1.Demand();
-                           if (perm.GetPathList(FileIOPermissionAccess.Read).Count() > 0 & (seq.Attributes & FileAttributes.Hidden) != FileAttributes.Hidden & seq.DirectoryName != "DfsrPrivate" & seq.Name != "DfsrPrivate")
-                           { return true; }
-                           else { return false; };
-                       }).ToList();
-            }
-            finally { }
+            matcFileName mmm = new matcFileName("01111ГУ987654_20180202", "^(\\d{5}ГУ\\d{6})(?:_(.*))*_(\\d{8})(?:_(\\d{1,2}))*$");
 
+            var yyy = FOp.lsToFileInfoW(_directory, "^(\\d{5}ГУ\\d{6})(?:_(.*))*_(\\d{8})(?:_(\\d{1,2}))*$").ToList();
+            var yyy1=FOp.CalcNumber(yyy.Where(sel=>sel.Name.Number==null ).ToList());
+            foreach (var y in yyy1) { y.NeedRename = true; }
+            FOp.DestinationDirectory = new DirectoryInfo("Z:\\");
+            FOp.TransferableFilesList = yyy;
+            FOp.calculateTransferableFilesList();
+            FOp.LoadDestinationByNumbers();
             FOp.Load(dList);
         }
+
+        
     }
 }

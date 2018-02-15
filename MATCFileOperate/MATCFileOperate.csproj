@@ -80,9 +80,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="FileContext.cs" />
+    <Compile Include="FileInfoW.cs" />
     <Compile Include="FileOperator.cs" />
     <Compile Include="kFileInfo.cs" />
-    <Compile Include="kFileInfoes.cs" />
+    <Compile Include="matcFileName.cs" />
     <Compile Include="Migrations\Configuration.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
