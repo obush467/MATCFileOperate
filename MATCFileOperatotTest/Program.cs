@@ -21,11 +21,11 @@ namespace MATCFileOperatotTest
     class Program
     {
         static void Main(string[] args)
-            
+
         {
             string _SQLConnectionString = "Data Source=MAKSIMOV;Initial Catalog=GBUMATC;Integrated Security=False;User ID=Бушмакин;Password=453459;";
             log4net.Config.XmlConfigurator.Configure();
-            DirectoryInfo di; 
+            DirectoryInfo di;
             List<DirectoryInfo> dList = new List<DirectoryInfo>();
             List<FileInfo> h;
             DirectoryInfo _directory = new DirectoryInfo("e:\\111");
@@ -38,22 +38,38 @@ namespace MATCFileOperatotTest
                 dList.Add(di);
                 h = new List<FileInfo>();
             }
-            FileOperator FOp = new FileOperator(new SqlConnection(_SQLConnectionString), LogManager.GetLogger(typeof(FileOperator)),false);
+            FileOperator FOp = new FileOperator(new SqlConnection(_SQLConnectionString), LogManager.GetLogger(typeof(FileOperator)), false);
             OldFiles = new List<FileInfo>();
-            directories=new DirectoryInfo[] { _directory};
+            directories = new DirectoryInfo[] { _directory };
 
             matcFileName mmm = new matcFileName("01111ГУ987654_20180202", "^(\\d{5}ГУ\\d{6})(?:_(.*))*_(\\d{8})(?:_(\\d{1,2}))*$");
 
             var yyy = FOp.lsToFileInfoW(_directory, "^(\\d{5}ГУ\\d{6})(?:_(.*))*_(\\d{8})(?:_(\\d{1,2}))*$").ToList();
-            var yyy1=FOp.CalcNumber(yyy.Where(sel=>sel.Name.Number==null ).ToList());
+            var yyy1 = FOp.CalcNumber(yyy.Where(sel => sel.Name.Number == null).ToList());
+            List<List<FileInfoW>> ll = new List<List<FileInfoW>>();
+            FOp.TransferableFilesList = yyy;
+            Task t2 = Task.Factory.StartNew(() =>
+            { FOp.MD5CalculateParallel(FOp.TransferableFilesList, 7); });
+            t2.Wait();
+            ll.Add(yyy);
+
+            FOp.selectDubbles(ll);
             foreach (var y in yyy1) { y.NeedRename = true; }
             FOp.DestinationDirectory = new DirectoryInfo("Z:\\");
-            FOp.TransferableFilesList = yyy;
+            
             FOp.calculateTransferableFilesList();
             FOp.LoadDestinationByNumbers();
+            FOp.CreateTasks().Last().Wait();
+            /*Task t1 = Task.Factory.StartNew(() =>
+                 { FOp.MD5CalculateParallel(FOp.DestinationFilesList, 7); });
+            //t1.Start();
+            
+            t1.Wait();*/
+
+            var rt = FOp.DestinationFilesList;
             FOp.Load(dList);
         }
 
-        
+
     }
 }

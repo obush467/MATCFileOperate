@@ -58,7 +58,7 @@ namespace MATCFileOperate
         }
         public FileContext Context { get; set; } 
         public ILog Log { get; set; }
-        public async Task Load(IEnumerable<DirectoryInfo> Directories)
+        public void Load(IEnumerable<DirectoryInfo> Directories)
         {
             Log.Info("Старт");
             Context.Configuration.AutoDetectChangesEnabled = false;
@@ -115,10 +115,10 @@ on new { fileO.FullName, fileO.Length }
                 };
             }
             catch (SecurityException e)
-            { Log.Error(e);  }
+            { Log.Error(e); }
             catch (UnauthorizedAccessException e)
             { Log.Error(e); }
-      
+
             catch (IOException e)
             { Log.Error(e); }
             catch (Exception e)
@@ -129,7 +129,7 @@ on new { fileO.FullName, fileO.Length }
                 Save();
             }
         }
-        public async Task MD5CalculateParallel(int LevelParalellism = 3)
+        public void MD5CalculateParallel(int LevelParalellism = 3)
         {
 
             int n = 1;
@@ -140,12 +140,15 @@ on new { fileO.FullName, fileO.Length }
             Task _save = SaveTask();
             try
             {
-                Parallel.ForEach<kFileInfo>(l, po, f =>
+                Parallel.ForEach<kFileInfo>(l, po, async f =>
                   {
                       if (File.Exists(f.FullName))
                       {
                           MD5 md5 = MD5.Create();
-                          f.MD5 = md5.ComputeHash(File.ReadAllBytes(f.FullName));
+                          FileStream sr = File.OpenRead(f.FullName);
+                          byte[] srresult = new byte[sr.Length];
+                          await sr.ReadAsync(srresult, 0, (int)sr.Length);
+                          f.MD5 = md5.ComputeHash(srresult);
                           f.Length = (new FileInfo(f.FullName)).Length;
                           Log.Info(n.ToString() + " " + f.Name);
                           n++;
@@ -379,6 +382,123 @@ on new { fileO.FullName, fileO.Length }
                     select new { ttti, ttt1i };
                 var ttt2 = dgg2.ToList();
             }
+        }
+
+        public void MD5CalculateParallel(List<FileInfoW> files, int LevelParalellism = 3)
+        {
+
+            int n = 1;
+            ParallelOptions po = new ParallelOptions();
+            po.MaxDegreeOfParallelism = LevelParalellism;
+            try
+            {
+                Parallel.ForEach<FileInfoW>(files, po, f =>
+                {
+                    if (f.fileInfo.Exists)
+                    {
+                        MD5 md5 = MD5.Create();
+                        try
+                        {
+                            FileStream sr = f.fileInfo.OpenRead();
+                            byte[] srresult = new byte[sr.Length];
+                            sr.Read(srresult, 0, (int)sr.Length);
+                            f.MD5 = md5.ComputeHash(srresult);
+                            Log.Info(n.ToString() + " " + f.fileInfo.FullName);
+                        }
+                        catch (Exception)
+                        {
+                            Log.Info(n.ToString() + " ошибка " + f.fileInfo.FullName); 
+                        }
+
+                        n++;
+                    }
+                });
+            }
+
+            finally
+            {
+
+            }
+
+        }
+
+        public Task tcreate(List<FileInfoW> dl, List<FileInfoW> tl, Task PrevTask)
+        {
+            Task res;
+            Action<Task[]> rr=(t)=>
+            
+                {
+                    Task t2 = Task.Factory.StartNew(() =>
+                    { MD5CalculateParallel(tl, 7); });
+                    Task t1 = Task.Factory.StartNew(() =>
+                    { MD5CalculateParallel(dl, 7); });
+                    
+                    Task t3 = Task.Factory.ContinueWhenAll(new Task[] { t1, t2 }, (tt) => {
+                    } );
+                    Task t4 = Task.Factory.ContinueWhenAll(new Task[] { t3 }, (tt) => { });
+                    t4.Wait();
+
+                };
+            if (PrevTask == null)
+            {
+                res = Task.Factory.StartNew(() =>
+                    {
+                        Log.Info(dl[0].Name.Number + " запущен!!!!");
+                        Task t1 = Task.Factory.StartNew(() =>
+                        { MD5CalculateParallel(dl, 7);
+                            Log.Info(dl[0].Name.Number + " посчитан 1");
+                        });
+                        Task t2 = Task.Factory.StartNew(() =>
+                        { MD5CalculateParallel(tl, 7);
+                            Log.Info(dl[0].Name.Number + " посчитан 2");
+                        });
+                        Task t3 = Task.Factory.ContinueWhenAll(new Task[] { t1, t2 }, (tt) => {
+                             });
+                        Task t4 = Task.Factory.ContinueWhenAll(new Task[] { t3 }, markToRenameReplace => { Log.Info(dl[0].Name.Number + " посчитан 4"); });
+                        t4.Wait();
+                    });
+            }
+            else
+            {
+                res = Task.Factory.ContinueWhenAll(new Task[] { PrevTask }, rr);
+            }
+            return res;
+        }
+
+        public List<Task> CreateTasks()
+        {
+            List<Task> res = new List<Task>();
+            Task lasttask=null;
+            foreach (string Num in TransferableNumbersList)
+            {
+                List<FileInfoW> destlist = DestinationFilesList.Where(w => w.Name.Number == Num).ToList();
+                List<FileInfoW> translist = TransferableFilesList.Where(w => w.Name.Number == Num).ToList();
+                Task newtask= tcreate(destlist, translist, lasttask);
+                res.Add(newtask);
+                lasttask = newtask;
+                
+            }
+            return res;
+        }
+        public List<IGrouping<string, FileInfoW>> selectDubbles(List<List<FileInfoW>> lists)
+        {
+            List<FileInfoW> tmp = new List<FileInfoW>();
+            foreach (List<FileInfoW>  l in lists)
+            { tmp.AddRange(l); }
+            var hashes =
+                from tmpi in tmp
+                where tmpi.MD5!=null
+                group tmpi by  new { MD5 = BitConverter.ToString(tmpi.MD5) }   into tmpign
+                where tmpign.Count() > 1
+                select new { tmpign.Key.MD5};
+            var res =
+                from tmpi in tmp.AsEnumerable()
+                where tmpi.MD5 != null
+                join h in hashes.AsEnumerable() 
+                on BitConverter.ToString(tmpi.MD5) equals h.MD5                
+                group tmpi by BitConverter.ToString(tmpi.MD5) into tmpi1
+                select tmpi1;
+            return res.ToList();
         }
     }
 }
